@@ -23,12 +23,12 @@ interface FirestoreDevice {
 }
 
 const deviceConverter: FirestoreDataConverter<FirestoreDevice> = {
-  toFirestore: (device: Omit<Device, "id">): DocumentData => {
+  toFirestore: (device): DocumentData => {
     return {
       name: device.name,
       key: device.key,
       nickname: device.nickname,
-      createdAt: Timestamp.fromDate(device.createdAt),
+      createdAt: device.createdAt,
     };
   },
   fromFirestore: (snapshot, options): FirestoreDevice => {

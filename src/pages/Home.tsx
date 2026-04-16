@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Plus, ChevronDown, Check, Settings, AlertTriangle, X } from "lucide-react";
+import { Plus, ChevronDown, Check, Settings, AlertTriangle } from "lucide-react";
 import { Navbar } from "../components/Navbar";
 import { AddDeviceModal } from "../components/AddDeviceModal";
 import { ManageDevicesModal } from "../components/ManageDevicesModal";

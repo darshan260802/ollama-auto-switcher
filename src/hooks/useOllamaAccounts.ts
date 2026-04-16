@@ -29,7 +29,7 @@ interface FirestoreOllamaAccount {
 }
 
 const ollamaAccountConverter: FirestoreDataConverter<FirestoreOllamaAccount> = {
-  toFirestore: (account: Omit<OllamaAccount, "id">): DocumentData => {
+  toFirestore: (account): DocumentData => {
     return {
       email: account.email,
       authToken: account.authToken,
@@ -38,7 +38,7 @@ const ollamaAccountConverter: FirestoreDataConverter<FirestoreOllamaAccount> = {
       weeklySessionUsage: account.weeklySessionUsage,
       weeklySessionResetIn: account.weeklySessionResetIn,
       connected: account.connected,
-      createdAt: Timestamp.fromDate(account.createdAt),
+      createdAt: account.createdAt,
     };
   },
   fromFirestore: (snapshot, options): FirestoreOllamaAccount => {

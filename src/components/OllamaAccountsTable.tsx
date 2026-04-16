@@ -20,18 +20,20 @@ interface UsageProgressBarProps {
 }
 
 function UsageProgressBar({ value, label }: UsageProgressBarProps) {
-  value = parseFloat(value); // Round to 2 decimal places
+  const numValue = typeof value === "string" ? parseFloat(value) : value;
   const getColorClass = (val: number): string => {
     if (val === 0) return "progress-success";
     if (val <= 70) return "progress-info";
     return "progress-error";
   };
 
+  const progressValue = numValue;
+
   return (
     <div className="flex items-center gap-2 min-w-30">
       <progress
-        className={`progress w-full ${getColorClass(value)}`}
-        value={value}
+        className={`progress w-full ${getColorClass(progressValue)}`}
+        value={progressValue}
         max={100}
       />
       <span className="text-xs text-base-content/70 w-10">{label}</span>
