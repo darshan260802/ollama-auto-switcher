@@ -3,18 +3,26 @@ import { Plus, ChevronDown, Check, Settings } from "lucide-react";
 import { Navbar } from "../components/Navbar";
 import { AddDeviceModal } from "../components/AddDeviceModal";
 import { ManageDevicesModal } from "../components/ManageDevicesModal";
+import { OllamaAccountsTable } from "../components/OllamaAccountsTable";
+import { AddOllamaAccountModal } from "../components/AddOllamaAccountModal";
 import { useAuth } from "../context/AuthContext";
 import { useDevices } from "../hooks/useDevices";
+import { useOllamaAccounts } from "../hooks/useOllamaAccounts";
 import type { Device } from "../types/device";
+import type { OllamaAccount } from "../types/ollamaAccount";
 
 export function Home() {
   const { user } = useAuth();
   const { devices, loading, addDevice, deleteDevice, updateDevice } = useDevices(user?.uid);
+  const { accounts, loading: accountsLoading, addAccount, updateAccount, deleteAccount } = useOllamaAccounts(user?.uid);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+  const [isOllamaAccountModalOpen, setIsOllamaAccountModalOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
+  const [editingOllamaAccount, setEditingOllamaAccount] = useState<OllamaAccount | null>(null);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+  const [ollamaAccountModalMode, setOllamaAccountModalMode] = useState<"add" | "edit">("add");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const dropdownButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -103,6 +111,73 @@ export function Home() {
     setModalMode("add");
   };
 
+  // Ollama Account handlers
+  const handleAddOllamaAccount = () => {
+    setOllamaAccountModalMode("add");
+    setEditingOllamaAccount(null);
+    setIsOllamaAccountModalOpen(true);
+  };
+
+  const handleEditOllamaAccount = (account: OllamaAccount) => {
+    setOllamaAccountModalMode("edit");
+    setEditingOllamaAccount(account);
+    setIsOllamaAccountModalOpen(true);
+  };
+
+  const handleDeleteOllamaAccount = async (account: OllamaAccount) => {
+    try {
+      await deleteAccount(account.id);
+      setToast({ message: "Account deleted successfully!", type: "success" });
+      setTimeout(() => setToast(null), 3000);
+    } catch (err) {
+      setToast({ message: "Failed to delete account", type: "error" });
+      setTimeout(() => setToast(null), 5000);
+    }
+  };
+
+  const handleConnectAccount = (account: OllamaAccount) => {
+    // TODO: Implement connection logic
+    console.log("Connecting to account:", account.email);
+  };
+
+  const handleRefreshAccount = (account: OllamaAccount) => {
+    // TODO: Implement refresh logic
+    console.log("Refreshing account:", account.email);
+  };
+
+  const handleOllamaAccountSubmit = async (accountData: { email: string; authToken: string }) => {
+    if (ollamaAccountModalMode === "edit" && editingOllamaAccount) {
+      // Update existing account
+      try {
+        await updateAccount(editingOllamaAccount.id, {
+          email: accountData.email,
+          ...(accountData.authToken ? { authToken: accountData.authToken } : {}),
+        });
+        setToast({ message: "Account updated successfully!", type: "success" });
+        setTimeout(() => setToast(null), 3000);
+        setEditingOllamaAccount(null);
+        setOllamaAccountModalMode("add");
+      } catch (err) {
+        throw err;
+      }
+    } else {
+      // Add new account
+      try {
+        await addAccount(accountData);
+        setToast({ message: "Account added successfully!", type: "success" });
+        setTimeout(() => setToast(null), 3000);
+      } catch (err) {
+        throw err;
+      }
+    }
+  };
+
+  const handleOllamaAccountModalClose = () => {
+    setIsOllamaAccountModalOpen(false);
+    setEditingOllamaAccount(null);
+    setOllamaAccountModalMode("add");
+  };
+
   return (
     <div className="flex flex-1 flex-col bg-base-100">
       <Navbar />
@@ -187,21 +262,48 @@ export function Home() {
           </button>
         </div>
 
+        {/* Divider */}
+        {selectedDevice && <div className="divider"></div>}
+
         {/* Main Content */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-6">
+        <div className="flex-1 flex flex-col gap-6">
           {selectedDevice ? (
-            <div className="text-center space-y-4">
-              <h1 className="text-3xl font-bold text-primary">
-                {selectedDevice.nickname || selectedDevice.name}
-              </h1>
-              <p className="text-base-content/70">
-                Device: {selectedDevice.name}
-              </p>
-            </div>
+            <>
+              {/* Ollama Accounts Section */}
+              <div className="space-y-4">
+                {/* Header with Add Button */}
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-base-content">Ollama Accounts</h2>
+                  <button
+                    onClick={handleAddOllamaAccount}
+                    className="btn btn-outline btn-sm gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add New Ollama Account
+                  </button>
+                </div>
+
+                {accountsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <span className="loading loading-spinner loading-md" />
+                  </div>
+                ) : (
+                  <OllamaAccountsTable
+                    accounts={accounts}
+                    onConnect={handleConnectAccount}
+                    onEdit={handleEditOllamaAccount}
+                    onRefresh={handleRefreshAccount}
+                    onDelete={handleDeleteOllamaAccount}
+                  />
+                )}
+              </div>
+            </>
           ) : (
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-primary mb-2">Hello World</h1>
-              <p className="text-base-content/70">Select a device to get started</p>
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <div className="text-center">
+                <h1 className="text-4xl font-bold text-primary mb-2">Hello World</h1>
+                <p className="text-base-content/70">Select a device to get started</p>
+              </div>
             </div>
           )}
         </div>
@@ -224,6 +326,16 @@ export function Home() {
         devices={devices}
         onEditDevice={handleEditDevice}
         onDeleteDevice={handleDeleteDevice}
+      />
+
+      {/* Add/Edit Ollama Account Modal */}
+      <AddOllamaAccountModal
+        isOpen={isOllamaAccountModalOpen}
+        onClose={handleOllamaAccountModalClose}
+        onSubmit={handleOllamaAccountSubmit}
+        onError={handleError}
+        mode={ollamaAccountModalMode}
+        account={editingOllamaAccount || undefined}
       />
     </div>
   );
