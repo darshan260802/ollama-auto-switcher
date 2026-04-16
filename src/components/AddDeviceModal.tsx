@@ -1,24 +1,44 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { X } from "lucide-react";
 import type { Device } from "../types/device";
 
 interface AddDeviceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onDeviceAdded: (device: Device) => void;
+  onSubmit: (deviceData: { name: string; key: string; nickname?: string }) => Promise<Device | undefined>;
   onError: (error: string) => void;
+  mode?: "add" | "edit";
+  device?: Device;
 }
 
 export function AddDeviceModal({
   isOpen,
   onClose,
-  onDeviceAdded,
+  onSubmit,
   onError,
+  mode = "add",
+  device,
 }: AddDeviceModalProps) {
   const [nickname, setNickname] = useState("");
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  const isEditMode = mode === "edit";
+
+  // Pre-fill form when in edit mode
+  useEffect(() => {
+    if (isEditMode && device) {
+      setNickname(device.nickname || "");
+      // Reconstruct URL from device data for display (disabled)
+      const reconstructedUrl = `https://ollama.com/connect?name=${encodeURIComponent(device.name)}&key=${encodeURIComponent(device.key)}`;
+      setUrl(reconstructedUrl);
+    } else {
+      setNickname("");
+      setUrl("");
+    }
+    setValidationError(null);
+  }, [isEditMode, device, isOpen]);
 
   // Parse Ollama URL to extract name and key
   const parseOllamaUrl = (
@@ -39,39 +59,49 @@ export function AddDeviceModal({
     e.preventDefault();
     setValidationError(null);
 
-    // Validate URL
-    if (!url.trim()) {
-      setValidationError("Ollama URL is required");
-      return;
-    }
+    let deviceData: { name: string; key: string; nickname?: string };
 
-    const parsed = parseOllamaUrl(url);
-    if (!parsed) {
-      setValidationError(
-        "Invalid URL format. Please use the Ollama connect URL format."
-      );
-      return;
+    if (isEditMode && device) {
+      // In edit mode, use existing device data
+      deviceData = {
+        name: device.name,
+        key: device.key,
+        nickname: nickname.trim() || undefined,
+      };
+    } else {
+      // In add mode, validate and parse URL
+      if (!url.trim()) {
+        setValidationError("Ollama URL is required");
+        return;
+      }
+
+      const parsed = parseOllamaUrl(url);
+      if (!parsed) {
+        setValidationError(
+          "Invalid URL format. Please use the Ollama connect URL format."
+        );
+        return;
+      }
+
+      deviceData = {
+        name: parsed.name,
+        key: parsed.key,
+        nickname: nickname.trim() || undefined,
+      };
     }
 
     setIsLoading(true);
 
     try {
-      // Create device object (will be passed to parent for Firestore operation)
-      const newDevice = {
-        name: parsed.name,
-        key: parsed.key,
-        nickname: nickname.trim() || undefined,
-      };
+      // Call parent's submit function
+      await onSubmit(deviceData);
 
-      // Call parent's add device function
-      const addedDevice = await onDeviceAdded(newDevice as Device);
-
-      // Reset form
+      // Reset form and close
       setNickname("");
       setUrl("");
       onClose();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to add device");
+      onError(err instanceof Error ? err.message : `Failed to ${isEditMode ? "update" : "add"} device`);
     } finally {
       setIsLoading(false);
     }
@@ -101,7 +131,9 @@ export function AddDeviceModal({
       <div className="relative z-10 w-full max-w-lg p-8 card bg-base-100 shadow-xl mx-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-base-content">Add New Device</h2>
+          <h2 className="text-xl font-bold text-base-content">
+            {isEditMode ? "Edit Device" : "Add New Device"}
+          </h2>
           <button
             type="button"
             onClick={handleClose}
@@ -140,7 +172,9 @@ export function AddDeviceModal({
           <div className="form-control">
             <label className="label" htmlFor="url">
               <span className="label-text">Ollama Device Signin URL</span>
-              <span className="label-text-alt text-error">Required</span>
+              <span className="label-text-alt text-error">
+                {isEditMode ? "Cannot be changed" : "Required"}
+              </span>
             </label>
             <input
               id="url"
@@ -149,8 +183,16 @@ export function AddDeviceModal({
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://ollama.com/connect?name=...&key=..."
               className="input input-bordered w-full"
-              disabled={isLoading}
+              disabled={isLoading || isEditMode}
+              readOnly={isEditMode}
             />
+            {isEditMode && (
+              <label className="label">
+                <span className="label-text-alt text-base-content/50">
+                  Device URL cannot be modified after creation
+                </span>
+              </label>
+            )}
           </div>
 
           {/* Validation Error */}
@@ -178,8 +220,10 @@ export function AddDeviceModal({
               {isLoading ? (
                 <>
                   <span className="loading loading-spinner loading-sm" />
-                  Adding...
+                  {isEditMode ? "Saving..." : "Adding..."}
                 </>
+              ) : isEditMode ? (
+                "Save Changes"
               ) : (
                 "Add Device"
               )}

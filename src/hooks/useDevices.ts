@@ -6,6 +6,7 @@ import {
   orderBy,
   onSnapshot,
   deleteDoc,
+  updateDoc,
   doc,
   Timestamp,
   type FirestoreDataConverter,
@@ -114,5 +115,18 @@ export function useDevices(userId: string | undefined) {
     [userId]
   );
 
-  return { devices, loading, addDevice, deleteDevice };
+  // Update a device in Firestore
+  const updateDevice = useCallback(
+    async (deviceId: string, updates: { nickname?: string | null }) => {
+      if (!userId) throw new Error("User not authenticated");
+
+      const deviceRef = doc(db, "users", userId, "devices", deviceId);
+      await updateDoc(deviceRef, {
+        nickname: updates.nickname || null,
+      });
+    },
+    [userId]
+  );
+
+  return { devices, loading, addDevice, deleteDevice, updateDevice };
 }
