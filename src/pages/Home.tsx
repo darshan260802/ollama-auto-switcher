@@ -14,7 +14,7 @@ import type { OllamaAccount } from "../types/ollamaAccount";
 export function Home() {
   const { user } = useAuth();
   const { devices, loading, addDevice, deleteDevice, updateDevice } = useDevices(user?.uid);
-  const { accounts, loading: accountsLoading, addAccount, updateAccount, deleteAccount } = useOllamaAccounts(user?.uid);
+  const { accounts, loading: accountsLoading, addAccount, updateAccount, deleteAccount, refreshAccountUsage } = useOllamaAccounts(user?.uid);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isOllamaAccountModalOpen, setIsOllamaAccountModalOpen] = useState(false);
@@ -140,9 +140,15 @@ export function Home() {
     console.log("Connecting to account:", account.email);
   };
 
-  const handleRefreshAccount = (account: OllamaAccount) => {
-    // TODO: Implement refresh logic
-    console.log("Refreshing account:", account.email);
+  const handleRefreshAccount = async (account: OllamaAccount) => {
+    try {
+      await refreshAccountUsage(account.id, account.authToken);
+    } catch (error) {
+      console.error("Failed to refresh account:", error);
+      setToast({ message: "Failed to refresh usage data", type: "error" });
+      setTimeout(() => setToast(null), 5000);
+      throw error;
+    }
   };
 
   const handleOllamaAccountSubmit = async (accountData: { email: string; authToken: string }) => {

@@ -145,5 +145,36 @@ export function useOllamaAccounts(userId: string | undefined) {
     [userId]
   );
 
-  return { accounts, loading, addAccount, updateAccount, deleteAccount };
+  // Refresh account usage from API and update Firestore
+  const refreshAccountUsage = useCallback(
+    async (accountId: string, authToken: string) => {
+      if (!userId) throw new Error("User not authenticated");
+
+      const response = await fetch("http://localhost:3000/ollama/usage", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ auth: authToken }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch usage: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Update Firestore with the usage data
+      const accountRef = doc(db, "users", userId, "ollama_accounts", accountId);
+      await updateDoc(accountRef, {
+        sessionUsage: data.session.usage,
+        sessionResetIn: data.session.reset,
+        weeklySessionUsage: data.weekly.usage,
+        weeklySessionResetIn: data.weekly.reset,
+      });
+    },
+    [userId]
+  );
+
+  return { accounts, loading, addAccount, updateAccount, deleteAccount, refreshAccountUsage };
 }

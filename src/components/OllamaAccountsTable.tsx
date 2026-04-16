@@ -6,8 +6,33 @@ interface OllamaAccountsTableProps {
   accounts: OllamaAccount[];
   onConnect: (account: OllamaAccount) => void;
   onEdit: (account: OllamaAccount) => void;
-  onRefresh: (account: OllamaAccount) => void;
+  onRefresh: (account: OllamaAccount) => Promise<void>;
   onDelete: (account: OllamaAccount) => void;
+}
+
+interface UsageProgressBarProps {
+  value: number;
+  label: string;
+}
+
+function UsageProgressBar({ value, label }: UsageProgressBarProps) {
+  value = parseFloat(value); // Round to 2 decimal places
+  const getColorClass = (val: number): string => {
+    if (val === 0) return "progress-success";
+    if (val <= 70) return "progress-info";
+    return "progress-error";
+  };
+
+  return (
+    <div className="flex items-center gap-2 min-w-30">
+      <progress
+        className={`progress w-full ${getColorClass(value)}`}
+        value={value}
+        max={100}
+      />
+      <span className="text-xs text-base-content/70 w-10">{label}</span>
+    </div>
+  );
 }
 
 export function OllamaAccountsTable({
@@ -18,9 +43,19 @@ export function OllamaAccountsTable({
   onDelete,
 }: OllamaAccountsTableProps) {
   const [deletingAccount, setDeletingAccount] = useState<OllamaAccount | null>(null);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
   const handleDeleteClick = (account: OllamaAccount) => {
     setDeletingAccount(account);
+  };
+
+  const handleRefreshClick = async (account: OllamaAccount) => {
+    setRefreshingId(account.id);
+    try {
+      await onRefresh(account);
+    } finally {
+      setRefreshingId(null);
+    }
   };
 
   const handleConfirmDelete = () => {
@@ -60,14 +95,28 @@ export function OllamaAccountsTable({
               accounts.map((account) => (
                 <tr key={account.id}>
                   <td className="font-medium">{account.email}</td>
-                  <td className="text-center text-sm">
-                    {account.sessionUsage !== undefined ? `${account.sessionUsage}/100` : "-"}
+                  <td className="text-center">
+                    {account.sessionUsage !== undefined ? (
+                      <UsageProgressBar
+                        value={account.sessionUsage}
+                        label={`${account.sessionUsage}`}
+                      />
+                    ) : (
+                      "-"
+                    )}
                   </td>
                   <td className="text-center text-sm">
                     {account.sessionResetIn || "-"}
                   </td>
-                  <td className="text-center text-sm">
-                    {account.weeklySessionUsage !== undefined ? `${account.weeklySessionUsage}/500` : "-"}
+                  <td className="text-center">
+                    {account.weeklySessionUsage !== undefined ? (
+                      <UsageProgressBar
+                        value={account.weeklySessionUsage}
+                        label={`${account.weeklySessionUsage}`}
+                      />
+                    ) : (
+                      "-"
+                    )}
                   </td>
                   <td className="text-center text-sm">
                     {account.weeklySessionResetIn || "-"}
@@ -89,11 +138,12 @@ export function OllamaAccountsTable({
                         Edit
                       </button>
                       <button
-                        onClick={() => onRefresh(account)}
-                        className="btn btn-ghost btn-xs gap-1"
+                        onClick={() => handleRefreshClick(account)}
+                        disabled={refreshingId === account.id}
+                        className="btn btn-ghost btn-xs gap-1 w-24"
                       >
-                        <RefreshCw className="w-3 h-3" />
-                        Refresh
+                        <RefreshCw className={`w-3 h-3 ${refreshingId === account.id ? "animate-spin" : ""}`} />
+                        {refreshingId === account.id ? "Refreshing..." : "Refresh"}
                       </button>
                       <button
                         onClick={() => handleDeleteClick(account)}
