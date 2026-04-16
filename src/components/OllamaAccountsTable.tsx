@@ -1,10 +1,14 @@
 import { useState } from "react";
-import { Plug, Pencil, RefreshCw, Trash2, AlertTriangle } from "lucide-react";
+import { Plug, Pencil, RefreshCw, Trash2, AlertTriangle, Unplug } from "lucide-react";
 import type { OllamaAccount } from "../types/ollamaAccount";
+import type { Device } from "../types/device";
 
 interface OllamaAccountsTableProps {
   accounts: OllamaAccount[];
+  selectedDevice: Device | null;
+  connectedAccountId: string | null;
   onConnect: (account: OllamaAccount) => void;
+  onDisconnect: (account: OllamaAccount) => void;
   onEdit: (account: OllamaAccount) => void;
   onRefresh: (account: OllamaAccount) => Promise<void>;
   onDelete: (account: OllamaAccount) => void;
@@ -37,13 +41,17 @@ function UsageProgressBar({ value, label }: UsageProgressBarProps) {
 
 export function OllamaAccountsTable({
   accounts,
+  selectedDevice,
+  connectedAccountId,
   onConnect,
+  onDisconnect,
   onEdit,
   onRefresh,
   onDelete,
 }: OllamaAccountsTableProps) {
   const [deletingAccount, setDeletingAccount] = useState<OllamaAccount | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const [connectingId, setConnectingId] = useState<string | null>(null);
 
   const handleDeleteClick = (account: OllamaAccount) => {
     setDeletingAccount(account);
@@ -55,6 +63,24 @@ export function OllamaAccountsTable({
       await onRefresh(account);
     } finally {
       setRefreshingId(null);
+    }
+  };
+
+  const handleConnectClick = async (account: OllamaAccount) => {
+    if (account.connected) {
+      setConnectingId(account.id);
+      try {
+        await onDisconnect(account);
+      } finally {
+        setConnectingId(null);
+      }
+    } else {
+      setConnectingId(account.id);
+      try {
+        await onConnect(account);
+      } finally {
+        setConnectingId(null);
+      }
     }
   };
 
@@ -92,70 +118,92 @@ export function OllamaAccountsTable({
                 </td>
               </tr>
             ) : (
-              accounts.map((account) => (
-                <tr key={account.id}>
-                  <td className="font-medium">{account.email}</td>
-                  <td className="text-center">
-                    {account.sessionUsage !== undefined ? (
-                      <UsageProgressBar
-                        value={account.sessionUsage}
-                        label={`${account.sessionUsage}`}
-                      />
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="text-center text-sm">
-                    {account.sessionResetIn || "-"}
-                  </td>
-                  <td className="text-center">
-                    {account.weeklySessionUsage !== undefined ? (
-                      <UsageProgressBar
-                        value={account.weeklySessionUsage}
-                        label={`${account.weeklySessionUsage}`}
-                      />
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="text-center text-sm">
-                    {account.weeklySessionResetIn || "-"}
-                  </td>
-                  <td>
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => onConnect(account)}
-                        className="btn btn-ghost btn-xs gap-1"
-                      >
-                        <Plug className="w-3 h-3" />
-                        Connect
-                      </button>
-                      <button
-                        onClick={() => onEdit(account)}
-                        className="btn btn-ghost btn-xs gap-1"
-                      >
-                        <Pencil className="w-3 h-3" />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleRefreshClick(account)}
-                        disabled={refreshingId === account.id}
-                        className="btn btn-ghost btn-xs gap-1 w-24"
-                      >
-                        <RefreshCw className={`w-3 h-3 ${refreshingId === account.id ? "animate-spin" : ""}`} />
-                        {refreshingId === account.id ? "Refreshing..." : "Refresh"}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(account)}
-                        className="btn btn-ghost btn-xs gap-1 text-error hover:bg-error/10"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+              accounts.map((account) => {
+                const isConnected = account.id === connectedAccountId;
+                const isConnecting = connectingId === account.id;
+                return (
+                  <tr key={account.id} className={isConnected ? "bg-success/10" : ""}>
+                    <td className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {account.email}
+                        {isConnected && (
+                          <span className="badge badge-success badge-sm">Connected</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="text-center">
+                      {account.sessionUsage !== undefined ? (
+                        <UsageProgressBar
+                          value={account.sessionUsage}
+                          label={`${account.sessionUsage}`}
+                        />
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td className="text-center text-sm">
+                      {account.sessionResetIn || "-"}
+                    </td>
+                    <td className="text-center">
+                      {account.weeklySessionUsage !== undefined ? (
+                        <UsageProgressBar
+                          value={account.weeklySessionUsage}
+                          label={`${account.weeklySessionUsage}`}
+                        />
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td className="text-center text-sm">
+                      {account.weeklySessionResetIn || "-"}
+                    </td>
+                    <td>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => handleConnectClick(account)}
+                          disabled={isConnecting || !selectedDevice}
+                          title={!selectedDevice ? "Select a device first" : undefined}
+                          className={`btn btn-ghost btn-xs gap-1 w-28 ${isConnected ? "text-error hover:bg-error/10" : ""}`}
+                        >
+                          {isConnected ? (
+                            <>
+                              <Unplug className={`w-3 h-3 ${isConnecting ? "animate-spin" : ""}`} />
+                              {isConnecting ? "Disconnecting..." : "Disconnect"}
+                            </>
+                          ) : (
+                            <>
+                              <Plug className={`w-3 h-3 ${isConnecting ? "animate-spin" : ""}`} />
+                              {isConnecting ? "Connecting..." : "Connect"}
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => onEdit(account)}
+                          className="btn btn-ghost btn-xs gap-1"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleRefreshClick(account)}
+                          disabled={refreshingId === account.id}
+                          className="btn btn-ghost btn-xs gap-1 w-24"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${refreshingId === account.id ? "animate-spin" : ""}`} />
+                          {refreshingId === account.id ? "Refreshing..." : "Refresh"}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(account)}
+                          className="btn btn-ghost btn-xs gap-1 text-error hover:bg-error/10"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

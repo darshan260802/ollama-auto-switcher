@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Plus, ChevronDown, Check, Settings } from "lucide-react";
+import { Plus, ChevronDown, Check, Settings, AlertTriangle, X } from "lucide-react";
 import { Navbar } from "../components/Navbar";
 import { AddDeviceModal } from "../components/AddDeviceModal";
 import { ManageDevicesModal } from "../components/ManageDevicesModal";
@@ -8,13 +8,14 @@ import { AddOllamaAccountModal } from "../components/AddOllamaAccountModal";
 import { useAuth } from "../context/AuthContext";
 import { useDevices } from "../hooks/useDevices";
 import { useOllamaAccounts } from "../hooks/useOllamaAccounts";
+import { API_BASE_URL } from "../config/api";
 import type { Device } from "../types/device";
 import type { OllamaAccount } from "../types/ollamaAccount";
 
 export function Home() {
   const { user } = useAuth();
   const { devices, loading, addDevice, deleteDevice, updateDevice } = useDevices(user?.uid);
-  const { accounts, loading: accountsLoading, addAccount, updateAccount, deleteAccount, refreshAccountUsage } = useOllamaAccounts(user?.uid);
+  const { accounts, loading: accountsLoading, addAccount, updateAccount, deleteAccount, refreshAccountUsage, connectAccount, disconnectAccount } = useOllamaAccounts(user?.uid);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isOllamaAccountModalOpen, setIsOllamaAccountModalOpen] = useState(false);
@@ -24,6 +25,7 @@ export function Home() {
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [ollamaAccountModalMode, setOllamaAccountModalMode] = useState<"add" | "edit">("add");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [connectionErrorModal, setConnectionErrorModal] = useState<{ isOpen: boolean; message: string } | null>(null);
   const dropdownButtonRef = useRef<HTMLButtonElement>(null);
 
   // Format device option for dropdown display
@@ -135,9 +137,104 @@ export function Home() {
     }
   };
 
-  const handleConnectAccount = (account: OllamaAccount) => {
-    // TODO: Implement connection logic
-    console.log("Connecting to account:", account.email);
+  const handleConnectAccount = async (account: OllamaAccount) => {
+    if (!selectedDevice) {
+      setToast({ message: "Please select a device first", type: "error" });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    try {
+      // Check if another account is already connected
+      const connectedAccount = accounts.find((acc) => acc.connected && acc.id !== account.id);
+
+      // If another account is connected, disconnect it first via API
+      if (connectedAccount) {
+        const disconnectResponse = await fetch(`${API_BASE_URL}/ollama/disconnect`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            auth: connectedAccount.authToken,
+            enc_key: selectedDevice.key,
+          }),
+        });
+
+        if (!disconnectResponse.ok) {
+          throw new Error("Failed to disconnect current account");
+        }
+
+        // Update Firestore to disconnect the old account
+        await disconnectAccount(connectedAccount.id);
+      }
+
+      // Call connect API
+      const response = await fetch(`${API_BASE_URL}/ollama/connect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          auth: account.authToken,
+          name: selectedDevice.name,
+          enc_key: selectedDevice.key,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.connect) {
+        const serverMessage = data.msg || "";
+        throw new Error(serverMessage || "Connection failed");
+      }
+
+      // Update Firestore to mark account as connected
+      await connectAccount(account.id);
+
+      setToast({ message: "Account connected successfully!", type: "success" });
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      console.error("Connection failed:", error);
+      const errorMsg = error instanceof Error ? error.message : "";
+      const staticMsg = 'Try running "ollama signout" in the selected machine terminal and try again.';
+      setConnectionErrorModal({
+        isOpen: true,
+        message: errorMsg ? `${errorMsg}\n\n${staticMsg}` : staticMsg,
+      });
+    }
+  };
+
+  const handleDisconnectAccount = async (account: OllamaAccount) => {
+    if (!selectedDevice) return;
+
+    try {
+      // Call disconnect API
+      const response = await fetch(`${API_BASE_URL}/ollama/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          auth: account.authToken,
+          enc_key: selectedDevice.key,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to disconnect");
+      }
+
+      // Update Firestore
+      await disconnectAccount(account.id);
+
+      setToast({ message: "Account disconnected successfully!", type: "success" });
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      console.error("Disconnect failed:", error);
+      setToast({ message: "Failed to disconnect account", type: "error" });
+      setTimeout(() => setToast(null), 5000);
+    }
   };
 
   const handleRefreshAccount = async (account: OllamaAccount) => {
@@ -296,7 +393,10 @@ export function Home() {
                 ) : (
                   <OllamaAccountsTable
                     accounts={accounts}
+                    selectedDevice={selectedDevice}
+                    connectedAccountId={accounts.find((acc) => acc.connected)?.id || null}
                     onConnect={handleConnectAccount}
+                    onDisconnect={handleDisconnectAccount}
                     onEdit={handleEditOllamaAccount}
                     onRefresh={handleRefreshAccount}
                     onDelete={handleDeleteOllamaAccount}
@@ -343,6 +443,50 @@ export function Home() {
         mode={ollamaAccountModalMode}
         account={editingOllamaAccount || undefined}
       />
+
+      {/* Connection Error Modal */}
+      {connectionErrorModal?.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50"
+            onClick={() => setConnectionErrorModal(null)}
+            aria-hidden="true"
+          />
+
+          {/* Modal */}
+          <div className="relative z-10 w-full max-w-md card bg-base-100 shadow-xl mx-4 p-6">
+            <div className="text-center space-y-4">
+              {/* Icon */}
+              <div className="flex justify-center">
+                <div className="w-16 h-16 rounded-full bg-error/10 flex items-center justify-center">
+                  <AlertTriangle className="w-8 h-8 text-error" />
+                </div>
+              </div>
+
+              {/* Title */}
+              <h3 className="text-lg font-bold text-base-content">
+                Connection Failed
+              </h3>
+
+              {/* Message */}
+              <div className="text-base-content/70 px-2 whitespace-pre-line">
+                {connectionErrorModal.message}
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={() => setConnectionErrorModal(null)}
+                  className="btn btn-primary min-w-[100px]"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

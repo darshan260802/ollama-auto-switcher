@@ -11,8 +11,10 @@ import {
   Timestamp,
   type FirestoreDataConverter,
   type DocumentData,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../api/firebase";
+import { API_BASE_URL } from "../config/api";
 import type { OllamaAccount } from "../types/ollamaAccount";
 
 interface FirestoreOllamaAccount {
@@ -22,6 +24,7 @@ interface FirestoreOllamaAccount {
   sessionResetIn?: string;
   weeklySessionUsage?: number;
   weeklySessionResetIn?: string;
+  connected?: boolean;
   createdAt: Timestamp;
 }
 
@@ -34,6 +37,7 @@ const ollamaAccountConverter: FirestoreDataConverter<FirestoreOllamaAccount> = {
       sessionResetIn: account.sessionResetIn,
       weeklySessionUsage: account.weeklySessionUsage,
       weeklySessionResetIn: account.weeklySessionResetIn,
+      connected: account.connected,
       createdAt: Timestamp.fromDate(account.createdAt),
     };
   },
@@ -46,6 +50,7 @@ const ollamaAccountConverter: FirestoreDataConverter<FirestoreOllamaAccount> = {
       sessionResetIn: data.sessionResetIn,
       weeklySessionUsage: data.weeklySessionUsage,
       weeklySessionResetIn: data.weeklySessionResetIn,
+      connected: data.connected,
       createdAt: data.createdAt as Timestamp,
     };
   },
@@ -83,6 +88,7 @@ export function useOllamaAccounts(userId: string | undefined) {
           sessionResetIn: doc.data().sessionResetIn,
           weeklySessionUsage: doc.data().weeklySessionUsage,
           weeklySessionResetIn: doc.data().weeklySessionResetIn,
+          connected: doc.data().connected,
           createdAt: doc.data().createdAt.toDate(),
         }));
         setAccounts(accountList);
@@ -150,7 +156,7 @@ export function useOllamaAccounts(userId: string | undefined) {
     async (accountId: string, authToken: string) => {
       if (!userId) throw new Error("User not authenticated");
 
-      const response = await fetch("http://localhost:3000/ollama/usage", {
+      const response = await fetch(`${API_BASE_URL}/ollama/usage`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -176,5 +182,41 @@ export function useOllamaAccounts(userId: string | undefined) {
     [userId]
   );
 
-  return { accounts, loading, addAccount, updateAccount, deleteAccount, refreshAccountUsage };
+  // Connect account - set connected=true in Firestore
+  const connectAccount = useCallback(
+    async (accountId: string) => {
+      if (!userId) throw new Error("User not authenticated");
+
+      const accountsRef = collection(db, "users", userId, "ollama_accounts");
+      const batch = writeBatch(db);
+
+      // First, disconnect all other accounts
+      accounts.forEach((acc) => {
+        if (acc.id !== accountId && acc.connected) {
+          const accRef = doc(accountsRef, acc.id);
+          batch.update(accRef, { connected: false });
+        }
+      });
+
+      // Then connect the selected account
+      const accountRef = doc(accountsRef, accountId);
+      batch.update(accountRef, { connected: true });
+
+      await batch.commit();
+    },
+    [userId, accounts]
+  );
+
+  // Disconnect account - set connected=false in Firestore
+  const disconnectAccount = useCallback(
+    async (accountId: string) => {
+      if (!userId) throw new Error("User not authenticated");
+
+      const accountRef = doc(db, "users", userId, "ollama_accounts", accountId);
+      await updateDoc(accountRef, { connected: false });
+    },
+    [userId]
+  );
+
+  return { accounts, loading, addAccount, updateAccount, deleteAccount, refreshAccountUsage, connectAccount, disconnectAccount };
 }
