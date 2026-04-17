@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Plus, ChevronDown, Check, Settings, AlertTriangle } from "lucide-react";
 import { Navbar } from "../components/Navbar";
 import { AddDeviceModal } from "../components/AddDeviceModal";
@@ -14,14 +14,24 @@ import type { OllamaAccount } from "../types/ollamaAccount";
 
 export function Home() {
   const { user } = useAuth();
-  const { devices, loading, addDevice, deleteDevice, updateDevice } = useDevices(user?.uid);
-  const { accounts, loading: accountsLoading, addAccount, updateAccount, deleteAccount, refreshAccountUsage, connectAccount, disconnectAccount } = useOllamaAccounts(user?.uid);
+  const { devices, loading, addDevice, deleteDevice, updateDevice, setDeviceConnection } = useDevices(user?.uid);
+  const { accounts, loading: accountsLoading, addAccount, updateAccount, deleteAccount, refreshAccountUsage } = useOllamaAccounts(user?.uid);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isOllamaAccountModalOpen, setIsOllamaAccountModalOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [editingOllamaAccount, setEditingOllamaAccount] = useState<OllamaAccount | null>(null);
+
+  // Sync selectedDevice with latest data from devices array
+  useEffect(() => {
+    if (selectedDevice) {
+      const updatedDevice = devices.find((d) => d.id === selectedDevice.id);
+      if (updatedDevice && updatedDevice !== selectedDevice) {
+        setSelectedDevice(updatedDevice);
+      }
+    }
+  }, [devices, selectedDevice]);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [ollamaAccountModalMode, setOllamaAccountModalMode] = useState<"add" | "edit">("add");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -145,10 +155,11 @@ export function Home() {
     }
 
     try {
-      // Check if another account is already connected
-      const connectedAccount = accounts.find((acc) => acc.connected && acc.id !== account.id);
+      // Check if another account is already connected on this device
+      const connectedAccountId = selectedDevice.connectedAccountId;
+      const connectedAccount = connectedAccountId ? accounts.find((acc) => acc.id === connectedAccountId) : null;
 
-      // If another account is connected, disconnect it first via API
+      // If another account is connected on this device, disconnect it first via API
       if (connectedAccount) {
         const disconnectResponse = await fetch(`${API_BASE_URL}/ollama/disconnect`, {
           method: "POST",
@@ -164,9 +175,6 @@ export function Home() {
         if (!disconnectResponse.ok) {
           throw new Error("Failed to disconnect current account");
         }
-
-        // Update Firestore to disconnect the old account
-        await disconnectAccount(connectedAccount.id);
       }
 
       // Call connect API
@@ -189,8 +197,8 @@ export function Home() {
         throw new Error(serverMessage || "Connection failed");
       }
 
-      // Update Firestore to mark account as connected
-      await connectAccount(account.id);
+      // Update Firestore to mark device as connected to this account
+      await setDeviceConnection(selectedDevice.id, account.id);
 
       setToast({ message: "Account connected successfully!", type: "success" });
       setTimeout(() => setToast(null), 3000);
@@ -225,8 +233,8 @@ export function Home() {
         throw new Error("Failed to disconnect");
       }
 
-      // Update Firestore
-      await disconnectAccount(account.id);
+      // Update Firestore to clear device connection
+      await setDeviceConnection(selectedDevice.id, null);
 
       setToast({ message: "Account disconnected successfully!", type: "success" });
       setTimeout(() => setToast(null), 3000);
@@ -394,7 +402,7 @@ export function Home() {
                   <OllamaAccountsTable
                     accounts={accounts}
                     selectedDevice={selectedDevice}
-                    connectedAccountId={accounts.find((acc) => acc.connected)?.id || null}
+                    connectedAccountId={selectedDevice.connectedAccountId || null}
                     onConnect={handleConnectAccount}
                     onDisconnect={handleDisconnectAccount}
                     onEdit={handleEditOllamaAccount}

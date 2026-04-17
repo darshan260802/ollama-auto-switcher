@@ -19,6 +19,7 @@ interface FirestoreDevice {
   name: string;
   key: string;
   nickname?: string;
+  connectedAccountId?: string;
   createdAt: Timestamp;
 }
 
@@ -28,6 +29,7 @@ const deviceConverter: FirestoreDataConverter<FirestoreDevice> = {
       name: device.name,
       key: device.key,
       nickname: device.nickname,
+      connectedAccountId: device.connectedAccountId,
       createdAt: device.createdAt,
     };
   },
@@ -37,6 +39,7 @@ const deviceConverter: FirestoreDataConverter<FirestoreDevice> = {
       name: data.name,
       key: data.key,
       nickname: data.nickname,
+      connectedAccountId: data.connectedAccountId,
       createdAt: data.createdAt as Timestamp,
     };
   },
@@ -68,6 +71,7 @@ export function useDevices(userId: string | undefined) {
           name: doc.data().name,
           key: doc.data().key,
           nickname: doc.data().nickname,
+          connectedAccountId: doc.data().connectedAccountId,
           createdAt: doc.data().createdAt.toDate(),
         }));
         setDevices(deviceList);
@@ -128,5 +132,18 @@ export function useDevices(userId: string | undefined) {
     [userId]
   );
 
-  return { devices, loading, addDevice, deleteDevice, updateDevice };
+  // Connect/disconnect a device to/from an Ollama account
+  const setDeviceConnection = useCallback(
+    async (deviceId: string, accountId: string | null) => {
+      if (!userId) throw new Error("User not authenticated");
+
+      const deviceRef = doc(db, "users", userId, "devices", deviceId);
+      await updateDoc(deviceRef, {
+        connectedAccountId: accountId || null,
+      });
+    },
+    [userId]
+  );
+
+  return { devices, loading, addDevice, deleteDevice, updateDevice, setDeviceConnection };
 }

@@ -3,6 +3,7 @@ export interface Device {
   name: string;
   key: string;
   nickname?: string;
+  connectedAccountId?: string;
   createdAt: Date;
 }
 

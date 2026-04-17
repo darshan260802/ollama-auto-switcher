@@ -22,7 +22,7 @@ interface UsageProgressBarProps {
 function UsageProgressBar({ value, label }: UsageProgressBarProps) {
   const numValue = typeof value === "string" ? parseFloat(value) : value;
   const getColorClass = (val: number): string => {
-    if (val === 0) return "progress-success";
+    if (val <= 30) return "progress-success";
     if (val <= 70) return "progress-info";
     return "progress-error";
   };
@@ -69,7 +69,8 @@ export function OllamaAccountsTable({
   };
 
   const handleConnectClick = async (account: OllamaAccount) => {
-    if (account.connected) {
+    const isConnected = account.id === connectedAccountId;
+    if (isConnected) {
       setConnectingId(account.id);
       try {
         await onDisconnect(account);

@@ -6,7 +6,6 @@ export interface OllamaAccount {
   sessionResetIn?: string;
   weeklySessionUsage?: number;
   weeklySessionResetIn?: string;
-  connected?: boolean;
   createdAt: Date;
 }
 
