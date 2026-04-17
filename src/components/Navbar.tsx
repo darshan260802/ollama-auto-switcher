@@ -37,8 +37,20 @@ export function Navbar() {
         <div className="flex items-center gap-3">
           {user.photoURL ? (
             <img
-              src={user.photoURL}
+              src={`${user.photoURL}${user.photoURL.includes('?') ? '&' : '?'}cachebust=${Date.now()}`}
               alt="Profile"
+              crossOrigin="anonymous"
+              onError={(e) => {
+                const target = e.currentTarget;
+                target.style.display = 'none';
+                const parent = target.parentElement;
+                if (parent) {
+                  const fallback = document.createElement('div');
+                  fallback.className = 'w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center';
+                  fallback.innerHTML = `<span class="text-primary font-semibold text-lg">${user.displayName?.charAt(0).toUpperCase() || 'U'}</span>`;
+                  parent.appendChild(fallback);
+                }
+              }}
               className="w-10 h-10 rounded-full object-cover ring-2 ring-primary/20"
             />
           ) : (
