@@ -13,3 +13,15 @@ export interface OllamaAccountFormData {
   email: string;
   authToken: string;
 }
+
+// Export format - only includes necessary fields
+export interface OllamaAccountExportData {
+  email: string;
+  authToken: string;
+}
+
+export interface OllamaAccountsExportFile {
+  version: number;
+  exportedAt: string;
+  accounts: OllamaAccountExportData[];
+}

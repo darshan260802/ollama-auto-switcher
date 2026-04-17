@@ -1,21 +1,22 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, ChevronDown, Check, Settings, AlertTriangle } from "lucide-react";
+import { Plus, ChevronDown, Check, Settings, AlertTriangle, MoreVertical, Download, Upload } from "lucide-react";
 import { Navbar } from "../components/Navbar";
 import { AddDeviceModal } from "../components/AddDeviceModal";
 import { ManageDevicesModal } from "../components/ManageDevicesModal";
 import { OllamaAccountsTable } from "../components/OllamaAccountsTable";
 import { AddOllamaAccountModal } from "../components/AddOllamaAccountModal";
+import { ExportAccountsModal } from "../components/ExportAccountsModal";
 import { useAuth } from "../context/AuthContext";
 import { useDevices } from "../hooks/useDevices";
 import { useOllamaAccounts } from "../hooks/useOllamaAccounts";
 import { API_BASE_URL } from "../config/api";
 import type { Device } from "../types/device";
-import type { OllamaAccount } from "../types/ollamaAccount";
+import type { OllamaAccount, OllamaAccountsExportFile } from "../types/ollamaAccount";
 
 export function Home() {
   const { user } = useAuth();
   const { devices, loading, addDevice, deleteDevice, updateDevice, setDeviceConnection } = useDevices(user?.uid);
-  const { accounts, loading: accountsLoading, addAccount, updateAccount, deleteAccount, refreshAccountUsage } = useOllamaAccounts(user?.uid);
+  const { accounts, loading: accountsLoading, addAccount, updateAccount, deleteAccount, refreshAccountUsage, importAccounts } = useOllamaAccounts(user?.uid);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isOllamaAccountModalOpen, setIsOllamaAccountModalOpen] = useState(false);
@@ -37,6 +38,27 @@ export function Home() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [connectionErrorModal, setConnectionErrorModal] = useState<{ isOpen: boolean; message: string } | null>(null);
   const dropdownButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Import/Export state
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isTransportMenuOpen, setIsTransportMenuOpen] = useState(false);
+  const transportMenuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Close transport menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        transportMenuRef.current &&
+        !transportMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsTransportMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Format device option for dropdown display
   const formatDeviceOption = (device: Device): string => {
@@ -144,6 +166,72 @@ export function Home() {
     } catch (err) {
       setToast({ message: "Failed to delete account", type: "error" });
       setTimeout(() => setToast(null), 5000);
+    }
+  };
+
+  // Import/Export handlers
+  const handleExportClick = () => {
+    setIsTransportMenuOpen(false);
+    setIsExportModalOpen(true);
+  };
+
+  const handleImportClick = () => {
+    setIsTransportMenuOpen(false);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data: OllamaAccountsExportFile = JSON.parse(text);
+
+      // Validate export format
+      if (!data.accounts || !Array.isArray(data.accounts)) {
+        setToast({ message: "Invalid file format: missing accounts array", type: "error" });
+        setTimeout(() => setToast(null), 5000);
+        return;
+      }
+
+      // Filter valid accounts
+      const validAccounts = data.accounts.filter((acc) => acc.email && acc.authToken);
+
+      if (validAccounts.length === 0) {
+        setToast({ message: "No valid accounts found in file", type: "error" });
+        setTimeout(() => setToast(null), 5000);
+        return;
+      }
+
+      // Import accounts
+      const results = await importAccounts(validAccounts);
+
+      let message = `Imported ${results.imported} accounts`;
+      if (results.skipped > 0) {
+        message += `, skipped ${results.skipped} duplicates`;
+      }
+      if (results.errors.length > 0) {
+        message += `, ${results.errors.length} errors`;
+        console.error("Import errors:", results.errors);
+      }
+
+      setToast({
+        message,
+        type: results.imported > 0 ? "success" : "error",
+      });
+      setTimeout(() => setToast(null), 5000);
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Failed to import accounts",
+        type: "error",
+      });
+      setTimeout(() => setToast(null), 5000);
+    } finally {
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -385,13 +473,51 @@ export function Home() {
                 {/* Header with Add Button */}
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-base-content">Ollama Accounts</h2>
-                  <button
-                    onClick={handleAddOllamaAccount}
-                    className="btn btn-outline btn-sm gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add New Ollama Account
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleAddOllamaAccount}
+                      className="btn btn-outline btn-sm gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add New Ollama Account
+                    </button>
+
+                    {/* Transport Menu Dropdown */}
+                    <div className="relative" ref={transportMenuRef}>
+                      <button
+                        onClick={() => setIsTransportMenuOpen(!isTransportMenuOpen)}
+                        className="btn btn-outline btn-sm btn-circle"
+                        title="Import/Export"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+
+                      {isTransportMenuOpen && (
+                        <div className="absolute right-0 mt-2 w-56 bg-base-100 rounded-box shadow-lg border border-base-300 z-50">
+                          <ul className="menu p-2 w-full">
+                            <li>
+                              <button
+                                onClick={handleImportClick}
+                                className="flex items-center gap-2 py-3"
+                              >
+                                <Download className="w-4 h-4" />
+                                Import
+                              </button>
+                            </li>
+                            <li>
+                              <button
+                                onClick={handleExportClick}
+                                className="flex items-center gap-2 py-3"
+                              >
+                                <Upload className="w-4 h-4" />
+                                Export
+                              </button>
+                            </li>
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {accountsLoading ? (
@@ -450,6 +576,22 @@ export function Home() {
         onError={handleError}
         mode={ollamaAccountModalMode}
         account={editingOllamaAccount || undefined}
+      />
+
+      {/* Hidden file input for import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,application/json"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+
+      {/* Export Accounts Modal */}
+      <ExportAccountsModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        accounts={accounts}
       />
 
       {/* Connection Error Modal */}

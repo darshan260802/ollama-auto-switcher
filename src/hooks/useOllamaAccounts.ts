@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../api/firebase";
 import { API_BASE_URL } from "../config/api";
-import type { OllamaAccount } from "../types/ollamaAccount";
+import type { OllamaAccount, OllamaAccountExportData } from "../types/ollamaAccount";
 
 interface FirestoreOllamaAccount {
   email: string;
@@ -177,5 +177,51 @@ export function useOllamaAccounts(userId: string | undefined) {
     [userId]
   );
 
-  return { accounts, loading, addAccount, updateAccount, deleteAccount, refreshAccountUsage };
+  // Import multiple accounts from export data
+  const importAccounts = useCallback(
+    async (accountsToImport: OllamaAccountExportData[]) => {
+      if (!userId) throw new Error("User not authenticated");
+
+      const existingEmails = new Set(accounts.map((a) => a.email.toLowerCase()));
+      const accountsRef = collection(db, "users", userId, "ollama_accounts");
+      const results = {
+        imported: 0,
+        skipped: 0,
+        errors: [] as string[],
+      };
+
+      for (const accountData of accountsToImport) {
+        const email = accountData.email.trim().toLowerCase();
+        const authToken = accountData.authToken.trim();
+
+        // Skip duplicates
+        if (existingEmails.has(email)) {
+          results.skipped++;
+          continue;
+        }
+
+        // Skip invalid data
+        if (!email || !authToken) {
+          results.errors.push(`Invalid data for ${email || "unknown"}`);
+          continue;
+        }
+
+        try {
+          await addDoc(accountsRef, {
+            email: accountData.email.trim(),
+            authToken: accountData.authToken.trim(),
+            createdAt: new Date(),
+          });
+          results.imported++;
+        } catch (error) {
+          results.errors.push(`Failed to import ${email}: ${error}`);
+        }
+      }
+
+      return results;
+    },
+    [userId, accounts]
+  );
+
+  return { accounts, loading, addAccount, updateAccount, deleteAccount, refreshAccountUsage, importAccounts };
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from "react";
-import { X, Info, Play } from "lucide-react";
+import { X, Info, Play, TriangleAlert } from "lucide-react";
 import type { OllamaAccount } from "../types/ollamaAccount";
 import tutorialVideo from "../assets/video/ollama-auto-switcher-add-account.mp4";
 
@@ -95,7 +95,7 @@ export function AddOllamaAccountModal({
       />
 
       {/* Modal */}
-      <div className="relative z-10 w-full max-w-lg p-8 card bg-base-100 shadow-xl mx-4">
+      <div className="relative z-10 w-full max-w-2xl p-8 card bg-base-100 shadow-xl mx-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-base-content">
@@ -113,24 +113,40 @@ export function AddOllamaAccountModal({
 
         {/* Hint */}
         {!isEditMode && (
-          <div className="alert alert-soft mb-6">
-            <Info className="w-5 h-5 shrink-0" />
-            <div className="text-sm flex-1">
-              <p>
-                <strong>To get auth token:</strong> Open ollama.com in incognito mode, signin
-                with this email, then in devtools from Application tab in Cookies, copy value of
-                "__Secure-session" cookie and paste it here.
-              </p>
+          <>
+            <div className="alert alert-soft mb-6">
+              <Info className="w-5 h-5 shrink-0" />
+              <div className="text-sm flex-1">
+                <p>
+                  <strong>To get auth token:</strong> Open ollama.com in
+                  incognito mode, signin with this email, then in devtools from
+                  Application tab in Cookies, copy value of "__Secure-session"
+                  cookie and paste it here.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsVideoOpen(true)}
+                className="btn btn-ghost btn-sm gap-1 shrink-0"
+              >
+                <Play className="w-4 h-4" />
+                Tutorial
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsVideoOpen(true)}
-              className="btn btn-ghost btn-sm gap-1 shrink-0"
-            >
-              <Play className="w-4 h-4" />
-              Tutorial
-            </button>
-          </div>
+            <div className="alert alert-warning alert-soft mb-6">
+              <TriangleAlert className="w-5 h-5 shrink-0" />
+              <div className="text-sm flex-1">
+                <p>
+                  <strong>Warning: </strong>
+                  after logging in , do not perform logout, otherwise the token
+                  will be invalid and you will need to repeat the process to get
+                  a new token. That's why asking you to do it in incognito mode,
+                  so you can just close the window after copying the token
+                  without worrying about logging out.
+                </p>
+              </div>
+            </div>
+          </>
         )}
 
         {/* Form */}
@@ -165,7 +181,11 @@ export function AddOllamaAccountModal({
               type="password"
               value={authToken}
               onChange={(e) => setAuthToken(e.target.value)}
-              placeholder={isEditMode ? "Enter new token to update" : "Paste __Secure-session cookie value"}
+              placeholder={
+                isEditMode
+                  ? "Enter new token to update"
+                  : "Paste __Secure-session cookie value"
+              }
               className="input input-bordered w-full font-mono text-sm"
               disabled={isLoading}
             />
@@ -224,11 +244,7 @@ export function AddOllamaAccountModal({
             >
               <X className="w-5 h-5" />
             </button>
-            <video
-              controls
-              className="w-full rounded-lg"
-              src={tutorialVideo}
-            />
+            <video controls className="w-full rounded-lg" src={tutorialVideo} />
           </div>
         </div>
       )}
