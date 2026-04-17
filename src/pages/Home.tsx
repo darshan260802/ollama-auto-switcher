@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, ChevronDown, Check, Settings, AlertTriangle, MoreVertical, Download, Upload } from "lucide-react";
+import { Plus, ChevronDown, Check, Settings, AlertTriangle, MoreVertical, Download, Upload, RefreshCcw } from "lucide-react";
 import { Navbar } from "../components/Navbar";
 import { AddDeviceModal } from "../components/AddDeviceModal";
 import { ManageDevicesModal } from "../components/ManageDevicesModal";
@@ -44,6 +44,10 @@ export function Home() {
   const [isTransportMenuOpen, setIsTransportMenuOpen] = useState(false);
   const transportMenuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Refresh all state
+  const [isRefreshingAll, setIsRefreshingAll] = useState(false);
+  const [refreshingIds, setRefreshingIds] = useState<string[]>([]);
 
   // Close transport menu when clicking outside
   useEffect(() => {
@@ -344,6 +348,32 @@ export function Home() {
     }
   };
 
+  const handleRefreshAllAccounts = async () => {
+    if (accounts.length === 0) return;
+    setIsRefreshingAll(true);
+    setRefreshingIds(accounts.map((a) => a.id));
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const account of accounts) {
+      try {
+        await refreshAccountUsage(account.id, account.authToken);
+        successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+
+    setIsRefreshingAll(false);
+    setRefreshingIds([]);
+    if (errorCount === 0) {
+      setToast({ message: `Refreshed ${successCount} account${successCount !== 1 ? "s" : ""}`, type: "success" });
+    } else {
+      setToast({ message: `Refreshed ${successCount}, failed ${errorCount}`, type: "error" });
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const handleOllamaAccountSubmit = async (accountData: { email: string; authToken: string }) => {
     if (ollamaAccountModalMode === "edit" && editingOllamaAccount) {
       // Update existing account
@@ -482,6 +512,19 @@ export function Home() {
                       Add New Ollama Account
                     </button>
 
+                    <button
+                      onClick={handleRefreshAllAccounts}
+                      disabled={isRefreshingAll || accounts.length === 0}
+                      className="btn btn-outline btn-sm gap-2"
+                    >
+                      {isRefreshingAll ? (
+                        <span className="loading loading-spinner loading-sm" />
+                      ) : (
+                        <RefreshCcw className="w-4 h-4" />
+                      )}
+                      Refresh All
+                    </button>
+
                     {/* Transport Menu Dropdown */}
                     <div className="relative" ref={transportMenuRef}>
                       <button
@@ -534,6 +577,7 @@ export function Home() {
                     onEdit={handleEditOllamaAccount}
                     onRefresh={handleRefreshAccount}
                     onDelete={handleDeleteOllamaAccount}
+                    refreshingIds={refreshingIds}
                   />
                 )}
               </div>

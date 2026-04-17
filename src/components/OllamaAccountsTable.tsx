@@ -12,6 +12,7 @@ interface OllamaAccountsTableProps {
   onEdit: (account: OllamaAccount) => void;
   onRefresh: (account: OllamaAccount) => Promise<void>;
   onDelete: (account: OllamaAccount) => void;
+  refreshingIds?: string[];
 }
 
 interface UsageProgressBarProps {
@@ -50,6 +51,7 @@ export function OllamaAccountsTable({
   onEdit,
   onRefresh,
   onDelete,
+  refreshingIds = [],
 }: OllamaAccountsTableProps) {
   const [deletingAccount, setDeletingAccount] = useState<OllamaAccount | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
@@ -189,11 +191,11 @@ export function OllamaAccountsTable({
                         </button>
                         <button
                           onClick={() => handleRefreshClick(account)}
-                          disabled={refreshingId === account.id}
+                          disabled={refreshingId === account.id || refreshingIds.includes(account.id)}
                           className="btn btn-ghost btn-xs gap-1 w-24"
                         >
-                          <RefreshCw className={`w-3 h-3 ${refreshingId === account.id ? "animate-spin" : ""}`} />
-                          {refreshingId === account.id ? "Refreshing..." : "Refresh"}
+                          <RefreshCw className={`w-3 h-3 ${refreshingId === account.id || refreshingIds.includes(account.id) ? "animate-spin" : ""}`} />
+                          {refreshingId === account.id || refreshingIds.includes(account.id) ? "Refreshing..." : "Refresh"}
                         </button>
                         <button
                           onClick={() => handleDeleteClick(account)}
