@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
-import { X } from "lucide-react";
+import { X, Info, Play } from "lucide-react";
 import type { Device } from "../types/device";
+import tutorialVideo from "../assets/video/ollama-auto-switcher-add-device.mp4";
 
 interface AddDeviceModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export function AddDeviceModal({
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isVideoOpen, setIsVideoOpen] = useState(false);
 
   const isEditMode = mode === "edit";
 
@@ -144,6 +146,27 @@ export function AddDeviceModal({
           </button>
         </div>
 
+        {/* Info */}
+        {!isEditMode && (
+          <div className="alert alert-soft mb-6">
+            <Info className="w-5 h-5 shrink-0" />
+            <div className="text-sm flex-1">
+              <p>
+                Open terminal in target device and run 'ollama signout' then 'ollama signin',
+                copy paste link from terminal here
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsVideoOpen(true)}
+              className="btn btn-ghost btn-sm gap-1 shrink-0"
+            >
+              <Play className="w-4 h-4" />
+              Tutorial
+            </button>
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* Nickname Input */}
@@ -231,6 +254,31 @@ export function AddDeviceModal({
           </div>
         </form>
       </div>
+
+      {/* Video Tutorial Modal */}
+      {isVideoOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div
+            className="fixed inset-0 bg-black/80"
+            onClick={() => setIsVideoOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="relative z-[70] w-[90vw] min-w-[320px] max-w-[1200px] p-4 card bg-base-100 shadow-xl mx-4">
+            <button
+              type="button"
+              onClick={() => setIsVideoOpen(false)}
+              className="btn btn-ghost btn-sm btn-circle absolute top-2 right-2 z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <video
+              controls
+              className="w-full rounded-lg"
+              src={tutorialVideo}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

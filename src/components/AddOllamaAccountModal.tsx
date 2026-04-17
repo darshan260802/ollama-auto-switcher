@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
-import { X, Info } from "lucide-react";
+import { X, Info, Play } from "lucide-react";
 import type { OllamaAccount } from "../types/ollamaAccount";
+import tutorialVideo from "../assets/video/ollama-auto-switcher-add-account.mp4";
 
 interface AddOllamaAccountModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export function AddOllamaAccountModal({
   const [authToken, setAuthToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isVideoOpen, setIsVideoOpen] = useState(false);
 
   const isEditMode = mode === "edit";
 
@@ -111,15 +113,23 @@ export function AddOllamaAccountModal({
 
         {/* Hint */}
         {!isEditMode && (
-          <div className="alert alert-info mb-6">
-            <Info className="w-5 h-5 flex-shrink-0" />
-            <div className="text-sm">
+          <div className="alert alert-soft mb-6">
+            <Info className="w-5 h-5 shrink-0" />
+            <div className="text-sm flex-1">
               <p>
                 <strong>To get auth token:</strong> Open ollama.com in incognito mode, signin
                 with this email, then in devtools from Application tab in Cookies, copy value of
                 "__Secure-session" cookie and paste it here.
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsVideoOpen(true)}
+              className="btn btn-ghost btn-sm gap-1 shrink-0"
+            >
+              <Play className="w-4 h-4" />
+              Tutorial
+            </button>
           </div>
         )}
 
@@ -197,6 +207,31 @@ export function AddOllamaAccountModal({
           </div>
         </form>
       </div>
+
+      {/* Video Tutorial Modal */}
+      {isVideoOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div
+            className="fixed inset-0 bg-black/80"
+            onClick={() => setIsVideoOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="relative z-[70] w-[90vw] min-w-[320px] max-w-[1200px] p-4 card bg-base-100 shadow-xl mx-4">
+            <button
+              type="button"
+              onClick={() => setIsVideoOpen(false)}
+              className="btn btn-ghost btn-sm btn-circle absolute top-2 right-2 z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <video
+              controls
+              className="w-full rounded-lg"
+              src={tutorialVideo}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
