@@ -98,6 +98,19 @@ export function HookSettingsPanel({
             </button>
           </div>
 
+          {/* Setup Guide */}
+          <div className="bg-base-200/50 p-3 rounded-lg border border-base-300 space-y-2">
+            <div className="flex items-center gap-2 font-medium text-xs text-base-content/80">
+              <Terminal className="w-3 h-3" />
+              <span>Setup Guide</span>
+            </div>
+            <ol className="text-xs text-base-content/60 space-y-2 list-decimal pl-4">
+              <li>Run <code className="bg-base-300 px-1 rounded text-primary font-mono">npx claude-status-ollama setup</code> in your terminal.</li>
+              <li>Create a file at <code className="bg-base-300 px-1 rounded font-mono">~/.claude/ollama_tok.txt</code>.</li>
+              <li>Paste the generated token from below into that file.</li>
+            </ol>
+          </div>
+
           {/* Token display */}
           <div className="space-y-2">
             <span className="text-sm font-medium">Hook API token</span>
