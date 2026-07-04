@@ -6,9 +6,11 @@ import { ManageDevicesModal } from "../components/ManageDevicesModal";
 import { OllamaAccountsTable } from "../components/OllamaAccountsTable";
 import { AddOllamaAccountModal } from "../components/AddOllamaAccountModal";
 import { ExportAccountsModal } from "../components/ExportAccountsModal";
+import { HookSettingsPanel } from "../components/HookSettingsPanel";
 import { useAuth } from "../context/AuthContext";
 import { useDevices } from "../hooks/useDevices";
 import { useOllamaAccounts } from "../hooks/useOllamaAccounts";
+import { useUserSettings } from "../hooks/useUserSettings";
 import { API_BASE_URL } from "../config/api";
 import type { Device } from "../types/device";
 import type { OllamaAccount, OllamaAccountsExportFile } from "../types/ollamaAccount";
@@ -17,6 +19,13 @@ export function Home() {
   const { user } = useAuth();
   const { devices, loading, addDevice, deleteDevice, updateDevice, setDeviceConnection } = useDevices(user?.uid);
   const { accounts, loading: accountsLoading, addAccount, updateAccount, deleteAccount, refreshAccountUsage, importAccounts } = useOllamaAccounts(user?.uid);
+  const {
+    settings,
+    loading: settingsLoading,
+    setSelectedDeviceId,
+    setAutoSwitchEnabled,
+    setApiToken,
+  } = useUserSettings(user?.uid);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isOllamaAccountModalOpen, setIsOllamaAccountModalOpen] = useState(false);
@@ -33,6 +42,16 @@ export function Home() {
       }
     }
   }, [devices, selectedDevice]);
+
+  // Restore selected device from Firestore settings when data loads
+  useEffect(() => {
+    if (!settingsLoading && !selectedDevice && settings.selectedDeviceId && devices.length > 0) {
+      const restored = devices.find((d) => d.id === settings.selectedDeviceId);
+      if (restored) {
+        setSelectedDevice(restored);
+      }
+    }
+  }, [settingsLoading, settings.selectedDeviceId, devices, selectedDevice]);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [ollamaAccountModalMode, setOllamaAccountModalMode] = useState<"add" | "edit">("add");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -73,8 +92,13 @@ export function Home() {
   };
 
   // Handle device selection - close dropdown by blurring the button
-  const handleDeviceSelect = (device: Device) => {
+  const handleDeviceSelect = async (device: Device) => {
     setSelectedDevice(device);
+    try {
+      await setSelectedDeviceId(device.id);
+    } catch (err) {
+      console.error("Failed to save selected device:", err);
+    }
     // Close dropdown by blurring the trigger button
     dropdownButtonRef.current?.blur();
   };
@@ -97,6 +121,11 @@ export function Home() {
       try {
         const newDevice = await addDevice(deviceData);
         setSelectedDevice(newDevice);
+        try {
+          await setSelectedDeviceId(newDevice.id);
+        } catch (err) {
+          console.error("Failed to save selected device:", err);
+        }
         setToast({ message: "Device added successfully!", type: "success" });
         setTimeout(() => setToast(null), 3000);
         return newDevice;
@@ -134,6 +163,11 @@ export function Home() {
       // Clear selection if the deleted device was selected
       if (selectedDevice?.id === deviceId) {
         setSelectedDevice(null);
+        try {
+          await setSelectedDeviceId(null);
+        } catch (err) {
+          console.error("Failed to clear selected device:", err);
+        }
       }
     } catch (err) {
       setToast({ message: "Failed to delete device", type: "error" });
@@ -490,6 +524,17 @@ export function Home() {
             Manage Devices
           </button>
         </div>
+
+        {/* Hook settings */}
+        {selectedDevice && user?.uid && (
+          <HookSettingsPanel
+            userId={user.uid}
+            settings={settings}
+            loading={settingsLoading}
+            onToggleAutoSwitch={setAutoSwitchEnabled}
+            onSetApiToken={setApiToken}
+          />
+        )}
 
         {/* Divider */}
         {selectedDevice && <div className="divider"></div>}
