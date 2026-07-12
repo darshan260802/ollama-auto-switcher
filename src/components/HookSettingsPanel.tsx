@@ -105,7 +105,7 @@ export function HookSettingsPanel({
               <span>Setup Guide</span>
             </div>
             <ol className="text-xs text-base-content/60 space-y-2 list-decimal pl-4">
-              <li>Run <code className="bg-base-300 px-1 rounded text-primary font-mono">npx claude-status-ollama setup</code> in your terminal.</li>
+              <li>Run <code className="bg-base-300 px-1 rounded text-primary font-mono">npx claude-status-ollama setup --global</code> in your terminal.</li>
               <li>Create a file at <code className="bg-base-300 px-1 rounded font-mono">~/.claude/ollama_tok.txt</code>.</li>
               <li>Paste the generated token from below into that file.</li>
             </ol>
